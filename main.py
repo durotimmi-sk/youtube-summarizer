@@ -17,11 +17,9 @@ from groq import Groq
 from datetime import date
 import uvicorn
 
-# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load environment variables
 from dotenv import load_dotenv
 load_dotenv('.env')
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
@@ -33,12 +31,10 @@ if not YOUTUBE_API_KEY:
 if not GROQ_API_KEY:
     raise ValueError("GROQ_API_KEY is required")
 
-# Initialize FastAPI app
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -47,7 +43,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Ensure directories exist
 audio_dir = "static/audio"
 cache_dir = "cache"
 if not os.path.exists(audio_dir):
@@ -57,17 +52,13 @@ if not os.path.exists(cache_dir):
     os.makedirs(cache_dir)
     logger.info(f"Created cache directory: {cache_dir}")
 
-# Initialize Groq client
 client = Groq(api_key=GROQ_API_KEY)
 logger.info("Groq client initialized successfully")
 
-# Set today's date
 today = date.today().strftime("%B %d, %Y")
 
-# Cache version
 CACHE_VERSION = "1.10"  
 
-# Input models
 class VideoInput(BaseModel):
     query: str
 
@@ -95,12 +86,11 @@ def get_cached_summary(video_id: str, query: str = None) -> dict:
         try:
             with open(cache_file, 'rb') as f:
                 cached_data = pickle.load(f)
-                # Only check query match for /summarize endpoint
                 if query is None or (cached_data.get("cache_version") == CACHE_VERSION and cached_data.get("query") == query):
                     return cached_data
                 else:
                     logger.info(f"Cache version or query mismatch for video ID: {video_id}. Regenerating summary.")
-                    os.remove(cache_file)  # Remove outdated cache
+                    os.remove(cache_file) 
         except Exception as e:
             logger.error(f"Failed to retrieve cached summary: {str(e)}")
     return None
@@ -145,7 +135,6 @@ def extract_transcript(video_id: str) -> str:
         transcript_text = " ".join([entry["text"] for entry in transcript])
         if not transcript_text.strip():
             raise ValueError("Transcript is empty")
-        # Clean transcript of music annotations
         transcript_text = re.sub(r'\[Music.*?\]|\(Music.*?\)|\[.*?\]', '', transcript_text, flags=re.IGNORECASE)
         return transcript_text
     except Exception as e:
@@ -156,7 +145,6 @@ def extract_transcript(video_id: str) -> str:
         if response["items"]:
             description = response["items"][0]["snippet"]["description"]
             if description.strip():
-                # Clean description of music annotations
                 description = re.sub(r'\[Music.*?\]|\(Music.*?\)|\[.*?\]', '', description, flags=re.IGNORECASE)
                 return description
         raise HTTPException(status_code=400, detail="No transcript or description available for this video. Try another video.")
@@ -175,7 +163,7 @@ def get_real_time_data(video_id: str) -> dict:
 def analyze_sentiment(summary: str) -> str:
     try:
         system_prompt = "You are an AI that performs sentiment analysis. Classify the sentiment of the given text as 'Positive', 'Negative', or 'Neutral'. Respond only with the classification."
-        user_prompt = f"Text: {summary[:1000]}"  # Limit to avoid token overflow
+        user_prompt = f"Text: {summary[:1000]}" 
         
         messages = [
             {"role": "system", "content": system_prompt},
@@ -191,7 +179,7 @@ def analyze_sentiment(summary: str) -> str:
         
         sentiment = response.choices[0].message.content.strip()
         if sentiment not in ["Positive", "Negative", "Neutral"]:
-            return "Neutral"  # Fallback if Groq returns unexpected output
+            return "Neutral" 
         return sentiment
     except Exception as e:
         logger.error(f"Failed to analyze sentiment with Groq: {str(e)}")
@@ -226,12 +214,11 @@ def generate_summary(transcript: str, video_id: str, title: str, description: st
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=messages,
-            max_tokens=800,  # Increased to accommodate longer summary
+            max_tokens=800,
             temperature=0.7
         )
         
         summary = response.choices[0].message.content.strip()
-        # Clean summary of music annotations
         summary = re.sub(r'\[Music.*?\]|\(Music.*?\)|\[.*?\]', '', summary, flags=re.IGNORECASE)
         summary = re.sub(r'^-.*?\n', '', summary, flags=re.MULTILINE)
         sentiment = analyze_sentiment(summary)
@@ -243,7 +230,6 @@ def generate_summary(transcript: str, video_id: str, title: str, description: st
 
 def generate_conversational_audio_script(summary: str, video_id: str, title: str) -> str:
     try:
-        # Clean summary of music annotations before generating script
         clean_summary = re.sub(r'\[Music.*?\]|\(Music.*?\)|\[.*?\]', '', summary, flags=re.IGNORECASE)
         
         system_prompt = "You are an AI creating a conversational audio script discussing a YouTube video summary. Use a natural, engaging tone. Do not mention 'Speaker 1', 'Speaker 2', 'Host A', 'Host B', or any speaker names; instead, write the script as a seamless conversation between two unnamed speakers, alternating perspectives without labeling them. Break into 2-3 sentence segments per speaker. Cover the core message, key themes, characters, and impact."
@@ -262,7 +248,6 @@ def generate_conversational_audio_script(summary: str, video_id: str, title: str
         )
         
         script = response.choices[0].message.content.strip()
-        # Additional cleaning to ensure no music annotations remain
         script = re.sub(r'\[Music.*?\]|\(Music.*?\)|\[.*?\]', '', script, flags=re.IGNORECASE)
         return script
     except Exception as e:
@@ -281,7 +266,6 @@ def text_to_speech_conversational(script: str, video_id: str) -> str:
         logger.error(f"Failed to generate audio: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate audio: {str(e)}")
 
-# Endpoints
 @app.post("/summarize")
 async def summarize_video(video: VideoInput):
     try:
@@ -308,7 +292,7 @@ async def summarize_video(video: VideoInput):
             "sentiment": summary_data["sentiment"],
             "url": video_data["url"],
             "video_id": video_id,
-            "query": video.query  # Store the query in the cache
+            "query": video.query  
         }
         cache_summary(video_id, response_data)
         return response_data
@@ -320,7 +304,7 @@ async def summarize_video(video: VideoInput):
 @app.get("/audio-overview/{video_id}", response_class=HTMLResponse)
 async def audio_overview_page(request: Request, video_id: str):
     try:
-        cached_summary = get_cached_summary(video_id)  # No query needed for audio overview
+        cached_summary = get_cached_summary(video_id) 
         if not cached_summary:
             raise HTTPException(status_code=404, detail="Summary not found for this video ID")
 
@@ -337,7 +321,7 @@ async def audio_overview_page(request: Request, video_id: str):
 @app.get("/generate-audio/{video_id}")
 async def generate_audio(video_id: str):
     try:
-        cached_summary = get_cached_summary(video_id)  # No query needed for audio generation
+        cached_summary = get_cached_summary(video_id) 
         if not cached_summary:
             raise HTTPException(status_code=404, detail="Summary not found for this video ID")
 
@@ -358,7 +342,7 @@ async def generate_audio(video_id: str):
 @app.post("/chat")
 async def chat_with_summary(chat_input: ChatInput):
     try:
-        cached_summary = get_cached_summary(chat_input.video_id)  # No query needed for chat
+        cached_summary = get_cached_summary(chat_input.video_id)  
         if not cached_summary:
             raise HTTPException(status_code=404, detail="No summary found for this video")
         
@@ -403,7 +387,6 @@ async def get_audio(filename: str, t: str = None):
 
 @app.get("/favicon.ico")
 async def favicon():
-    # Return an empty response to suppress the 404 error
     return FileResponse("static/favicon.ico") if os.path.exists("static/favicon.ico") else {"status": "no favicon"}
 
 @app.get("/health")
