@@ -16,7 +16,6 @@ from gtts import gTTS
 from groq import Groq
 from datetime import date
 import uvicorn
-from pyngrok import ngrok, conf
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -28,7 +27,6 @@ load_dotenv('.env')
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 PORT = int(os.getenv("PORT", 8000))
-NGROK_AUTH_TOKEN = os.getenv("NGROK_AUTH_TOKEN")
 
 if not YOUTUBE_API_KEY:
     raise ValueError("YOUTUBE_API_KEY is required")
@@ -413,14 +411,5 @@ async def health_check():
     return {"status": "ok"}
 
 if __name__ == "__main__":
-    logger.info(f"Starting YouNote locally on http://0.0.0.0:{PORT}")
-    if NGROK_AUTH_TOKEN:
-        try:
-            conf.get_default().auth_token = NGROK_AUTH_TOKEN
-            public_url = ngrok.connect(PORT)
-            logger.info(f"Ngrok tunnel created: {public_url}")
-        except Exception as e:
-            logger.warning(f"Failed to start ngrok: {str(e)}. Continuing to run locally on http://0.0.0.0:{PORT}")
-    else:
-        logger.info("No NGROK_AUTH_TOKEN provided. Running locally only.")
-    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=True)
+    logger.info(f"Starting YouNote on http://0.0.0.0:{PORT}")
+    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=False)
