@@ -1,0 +1,12 @@
+numpy==1.26.4
+gTTS==2.5.3
+fastapi==0.115.11
+uvicorn==0.34.0
+youtube-transcript-api==0.6.2
+google-api-python-client==2.164.0
+pydantic==2.9.2
+python-dotenv==1.0.1
+requests==2.32.3
+starlette==0.41.0
+pyngrok
+groq

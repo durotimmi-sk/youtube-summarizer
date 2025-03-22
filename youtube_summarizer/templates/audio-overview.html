@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouNote - Audio Overview</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <header>
+        <div class="logo" id="theme-toggle">YouNote</div>
+        <div class="language-selector">
+            <a href="#" class="active" data-lang="en">EN</a>
+            <a href="#" data-lang="fr">FR</a>
+        </div>
+    </header>
+    <main>
+        <div class="audio-section">
+            <h2>Audio Overview: {{ title }}</h2>
+            <img id="video-thumbnail" class="thumbnail" alt="Video Thumbnail">
+            <div id="audio-player">
+                <button id="play-audio" class="action-button">Play Audio</button>
+                <audio controls id="audio-element" style="display: none;">
+                    <source id="audio-source" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+            </div>
+            <div id="audio-loading" class="loading" style="display: none;"></div>
+            <a href="/" class="back-button" id="summary-button">Summary</a>
+        </div>
+    </main>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const logo = document.getElementById('theme-toggle');
+            const languageLinks = document.querySelectorAll('.language-selector a');
+            const playButton = document.getElementById('play-audio');
+            const audioElement = document.getElementById('audio-element');
+            const audioSource = document.getElementById('audio-source');
+            const audioLoading = document.getElementById('audio-loading');
+            const summaryButton = document.getElementById('summary-button');
+            const thumbnail = document.getElementById('video-thumbnail');
+
+            // Theme toggle on logo click
+            const currentTheme = localStorage.getItem('theme') || 'dark';
+            document.body.className = currentTheme;
+
+            logo.addEventListener('click', () => {
+                const newTheme = document.body.className === 'light' ? 'dark' : 'light';
+                document.body.className = newTheme;
+                localStorage.setItem('theme', newTheme);
+            });
+
+            // Language toggle
+            function toggleLanguage(lang) {
+                document.querySelector('.language-selector .active').classList.remove('active');
+                document.querySelector(`[data-lang="${lang}"]`).classList.add('active');
+            }
+
+            languageLinks.forEach(link => {
+                link.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    toggleLanguage(link.getAttribute('data-lang'));
+                });
+            });
+
+            // Load thumbnail from session storage
+            const savedSummary = sessionStorage.getItem('summaryState');
+            if (savedSummary) {
+                const data = JSON.parse(savedSummary);
+                if (data.thumbnail) {
+                    thumbnail.src = data.thumbnail;
+                } else {
+                    thumbnail.style.display = 'none';
+                }
+            } else {
+                thumbnail.style.display = 'none';
+            }
+
+            // Animate loading dots for audio
+            function animateLoading(loadingDiv) {
+                let dots = 0;
+                return setInterval(() => {
+                    dots = (dots + 1) % 7;
+                    loadingDiv.innerHTML = '.'.repeat(dots);
+                }, 300);
+            }
+
+            // Play audio on button click
+            playButton.addEventListener('click', () => {
+                playButton.style.display = 'none';
+                audioLoading.style.display = 'block';
+                const loadingAnimation = animateLoading(audioLoading);
+
+                fetch('/generate-audio/{{ video_id }}')
+                    .then(response => {
+                        clearInterval(loadingAnimation);
+                        if (!response.ok) throw new Error('Failed to generate audio');
+                        return response.json();
+                    })
+                    .then(data => {
+                        audioLoading.style.display = 'none';
+                        audioElement.style.display = 'block';
+                        audioSource.src = data.audio_path;
+                        audioElement.load();
+                        audioElement.play().catch(error => {
+                            console.error('Audio play failed:', error);
+                            audioLoading.style.display = 'block';
+                            audioLoading.innerHTML = `<p>Error playing audio: ${error.message}</p>`;
+                        });
+                    })
+                    .catch(error => {
+                        clearInterval(loadingAnimation);
+                        audioLoading.style.display = 'block';
+                        audioLoading.innerHTML = `<p>Error generating audio: ${error.message}</p>`;
+                        playButton.style.display = 'block';
+                    });
+            });
+
+            // Preserve summary state when returning
+            summaryButton.addEventListener('click', (event) => {
+                event.preventDefault();
+                window.location.href = '/';
+            });
+        });
+    </script>
+</body>
+</html>

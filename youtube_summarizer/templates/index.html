@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en" class="notranslate">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google" content="notranslate">
+    <title>YouNote - YouTube Notebook</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+</head>
+<body>
+    <div class="main-container">
+        <header>
+            <div class="logo" id="theme-toggle">YouNote</div>
+            <div class="language-selector">
+                <a href="#" class="active" data-lang="en">EN</a>
+                <a href="#" data-lang="fr">FR</a>
+            </div>
+        </header>
+
+        <main>
+            <div class="search-section">
+                <div class="search-container">
+                    <input type="text" id="video-query" placeholder="Search" aria-label="Search YouTube video title or URL">
+                    <button class="search-button">➔</button>
+                </div>
+                <div id="loading" class="loading" style="display: none;"></div>
+                <div id="result" class="result-box"></div>
+                <div id="chat-container" class="chat-container" style="display: none;">
+                    <div id="chat-messages"></div>
+                    <div id="chat-loading" class="loading" style="display: none;"></div>
+                    <div class="chat-input">
+                        <input type="text" id="chat-query" placeholder="Ask a question about the video...">
+                        <button id="chat-submit" class="chat-submit">➔</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', path='/script.js') }}"></script>
+</body>
+</html>

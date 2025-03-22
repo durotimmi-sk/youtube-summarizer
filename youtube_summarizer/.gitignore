@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+.DS_Store
+static/audio/*
+!static/audio/.gitkeep
+venv/
+.vscode/
+.python-version
+test.py
+.venv
