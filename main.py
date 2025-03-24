@@ -4,6 +4,7 @@ import logging
 import re
 import time
 import pickle
+import random
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -102,7 +103,7 @@ def extract_video_id(url: str) -> str:
 
 def search_video(query: str) -> dict:
     try:
-        youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+        youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY, cache_discovery=False)
         video_id = extract_video_id(query)
         if video_id:
             request = youtube.videos().list(part="snippet", id=video_id)
@@ -130,8 +131,40 @@ def search_video(query: str) -> dict:
 
 def extract_transcript(video_id: str) -> str:
     try:
+        # Set up rotating proxy
+        proxy_username = os.getenv("PROXY_USERNAME")
+        proxy_password = os.getenv("PROXY_PASSWORD")
+        proxy_host = os.getenv("PROXY_HOST")
+        proxy_port = os.getenv("PROXY_PORT")
+        proxy_list = os.getenv("PROXY_LIST", "").split(",") if os.getenv("PROXY_LIST") else []
+
+        proxies = None
+        if proxy_username and proxy_password and proxy_host and proxy_port:
+            # Use rotating proxy by default
+            proxy_url = f"http://{proxy_username}:{proxy_password}@{proxy_host}:{proxy_port}"
+            proxies = {
+                "http": proxy_url,
+                "https": proxy_url,
+            }
+            logger.info(f"Using rotating proxy for youtube-transcript-api: {proxy_host}:{proxy_port}")
+        elif proxy_list:
+            # Fallback to manual rotation if rotating proxy isn't configured
+            proxy = random.choice(proxy_list)
+            proxy_url = f"http://{proxy_username}:{proxy_password}@{proxy}"
+            proxies = {
+                "http": proxy_url,
+                "https": proxy_url,
+            }
+            logger.info(f"Using manual proxy for youtube-transcript-api: {proxy}")
+
+        if not proxies:
+            logger.warning("No proxy configured. Making request without proxy.")
+
+        # Add a 1-second delay to avoid rate limiting
+        time.sleep(1)
+
         ytt_api = YouTubeTranscriptApi()
-        transcript = ytt_api.get_transcript(video_id)
+        transcript = ytt_api.get_transcript(video_id, proxies=proxies)
         transcript_text = " ".join([entry["text"] for entry in transcript])
         if not transcript_text.strip():
             raise ValueError("Transcript is empty")
@@ -139,7 +172,7 @@ def extract_transcript(video_id: str) -> str:
         return transcript_text
     except Exception as e:
         logger.warning(f"Transcript unavailable: {str(e)}")
-        youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+        youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY, cache_discovery=False)
         request = youtube.videos().list(part="snippet", id=video_id)
         response = request.execute()
         if response["items"]:
@@ -151,7 +184,7 @@ def extract_transcript(video_id: str) -> str:
 
 def get_real_time_data(video_id: str) -> dict:
     try:
-        youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+        youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY, cache_discovery=False)
         request = youtube.videos().list(part="statistics", id=video_id)
         response = request.execute()
         stats = response["items"][0]["statistics"] if response["items"] else {}
